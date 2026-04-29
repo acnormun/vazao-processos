@@ -464,6 +464,149 @@ def write_output(path, rows):
         write_csv(path, rows)
 
 
+def pdf_escape(value):
+    text = str(value)
+    return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def pdf_text(value):
+    return pdf_escape(str(value).encode("latin-1", "replace").decode("latin-1"))
+
+
+def write_pdf_report(path, resumo, titulo="Relatorio de vazao por assessor", filtros=""):
+    width, height = 842, 595
+    margin = 36
+    row_height = 18
+    columns = [
+        ("Assessor", 245),
+        ("Saidas", 50),
+        ("Media", 55),
+        ("Mediana", 60),
+        ("Min", 40),
+        ("Max", 40),
+        ("Sem saida", 65),
+        ("Sem entrada", 75),
+    ]
+    content_width = sum(size for _label, size in columns)
+    pages = []
+
+    def draw_header(lines):
+        y = height - margin
+        lines.append(f"BT /F1 16 Tf {margin} {y} Td ({pdf_text(titulo)}) Tj ET")
+        y -= 20
+        if filtros:
+            lines.append(f"BT /F1 9 Tf {margin} {y} Td ({pdf_text(filtros)}) Tj ET")
+            y -= 18
+        lines.append(f"BT /F1 9 Tf {margin} {y} Td ({pdf_text('Gerado em ' + dt.datetime.now().strftime('%d/%m/%Y %H:%M'))}) Tj ET")
+        y -= 18
+        return y
+
+    def draw_table_header(lines, y):
+        x = margin
+        lines.append(f"{margin} {y - 4} {content_width} 16 re S")
+        for label, size in columns:
+            lines.append(f"BT /F1 8 Tf {x + 3} {y} Td ({pdf_text(label)}) Tj ET")
+            x += size
+        return y - row_height
+
+    current = []
+    y = draw_header(current)
+    y = draw_table_header(current, y)
+
+    total_saidas = 0
+    total_sem_saida = 0
+    total_sem_entrada = 0
+    for item in resumo:
+        if y < margin + row_height:
+            pages.append(current)
+            current = []
+            y = draw_header(current)
+            y = draw_table_header(current, y)
+
+        values = [
+            item["Assessor"][:45],
+            item["Saidas"],
+            item["Vazao media"],
+            item["Vazao mediana"],
+            item["Menor vazao"],
+            item["Maior vazao"],
+            item["Entradas sem saida"],
+            item["Saidas sem entrada"],
+        ]
+        x = margin
+        current.append(f"{margin} {y - 4} {content_width} 16 re S")
+        for value, (_label, size) in zip(values, columns):
+            current.append(f"BT /F1 7 Tf {x + 3} {y} Td ({pdf_text(value)}) Tj ET")
+            x += size
+        total_saidas += item["Saidas"]
+        total_sem_saida += item["Entradas sem saida"]
+        total_sem_entrada += item["Saidas sem entrada"]
+        y -= row_height
+
+    if y < margin + row_height:
+        pages.append(current)
+        current = []
+        y = draw_header(current)
+
+    total_text = (
+        f"Totais: saidas={total_saidas} | entradas sem saida={total_sem_saida} | "
+        f"saidas sem entrada={total_sem_entrada}"
+    )
+    current.append(f"BT /F1 10 Tf {margin} {y - 8} Td ({pdf_text(total_text)}) Tj ET")
+    pages.append(current)
+
+    objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "",
+    ]
+    page_object_numbers = []
+    content_object_numbers = []
+    next_object = 3
+    for _page in pages:
+        page_object_numbers.append(next_object)
+        content_object_numbers.append(next_object + 1)
+        next_object += 2
+
+    kids = " ".join(f"{number} 0 R" for number in page_object_numbers)
+    objects[1] = f"<< /Type /Pages /Kids [{kids}] /Count {len(pages)} >>"
+
+    for page_number, lines in enumerate(pages):
+        content_number = content_object_numbers[page_number]
+        page = (
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width} {height}] "
+            f"/Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> "
+            f"/Contents {content_number} 0 R >>"
+        )
+        stream = "\n".join(lines)
+        stream_bytes = stream.encode("latin-1", "replace")
+        content = (
+            f"<< /Length {len(stream_bytes)} >>\nstream\n"
+            + stream_bytes.decode("latin-1")
+            + "\nendstream"
+        )
+        objects.extend([page, content])
+
+    output = bytearray()
+    output.extend(b"%PDF-1.4\n")
+    offsets = [0]
+    for index, obj in enumerate(objects, start=1):
+        offsets.append(len(output))
+        output.extend(f"{index} 0 obj\n{obj}\nendobj\n".encode("latin-1", "replace"))
+
+    xref = len(output)
+    output.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    output.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        output.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    output.extend(
+        (
+            f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+            f"startxref\n{xref}\n%%EOF\n"
+        ).encode("ascii")
+    )
+    Path(path).write_bytes(output)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Cruza distribuicoes e saidas para calcular a vazao dos processos."

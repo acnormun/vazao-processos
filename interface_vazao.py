@@ -115,6 +115,9 @@ class VazaoApp(tk.Tk):
         ttk.Button(filters, text="Atualizar", command=self.update_analytics).grid(
             row=0, column=8, sticky="e"
         )
+        ttk.Button(filters, text="Exportar PDF", command=self.export_pdf).grid(
+            row=0, column=9, sticky="e", padx=(8, 0)
+        )
 
         self.summary_var = tk.StringVar(value="Gere a planilha para visualizar os indicadores.")
         ttk.Label(analytics, textvariable=self.summary_var).grid(
@@ -347,6 +350,46 @@ class VazaoApp(tk.Tk):
             f"Entradas sem saida: {total_pendentes} | Saidas sem entrada: {total_sem_entrada}"
         )
         self.update_chart()
+
+    def current_filter_text(self):
+        parts = [f"Tarefa: {self.tarefa_var.get()}", f"Periodo: {self.periodo_var.get()}"]
+        if self.inicio_var.get().strip():
+            parts.append(f"Inicio: {self.inicio_var.get().strip()}")
+        if self.fim_var.get().strip():
+            parts.append(f"Fim: {self.fim_var.get().strip()}")
+        return " | ".join(parts)
+
+    def export_pdf(self):
+        if not self.resultado:
+            messagebox.showerror("Sem dados", "Gere a planilha antes de exportar o PDF.")
+            return
+
+        self.update_analytics()
+        resumo = getattr(self, "current_summary", [])
+        if not resumo:
+            messagebox.showerror("Sem dados", "Nao ha dados para os filtros atuais.")
+            return
+
+        output = filedialog.asksaveasfilename(
+            title="Salvar relatorio em PDF",
+            defaultextension=".pdf",
+            filetypes=[("PDF", "*.pdf")],
+            initialfile="relatorio-vazao-assessores.pdf",
+        )
+        if not output:
+            return
+
+        try:
+            cruzar_vazao.write_pdf_report(
+                output,
+                resumo,
+                filtros=self.current_filter_text(),
+            )
+        except Exception as exc:
+            messagebox.showerror("Erro ao exportar", str(exc))
+            return
+
+        messagebox.showinfo("PDF gerado", f"Arquivo gerado: {output}")
 
     def update_chart(self):
         self.chart.delete("all")

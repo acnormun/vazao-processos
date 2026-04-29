@@ -25,6 +25,8 @@ Depois de gerar a planilha, a mesma tela mostra a vazao por assessor com filtros
 
 A tabela exibe quantidade de saidas, media/mediana/minimo/maximo de vazao em dias, entradas sem saida e saidas sem entrada.
 
+Use o botao `Exportar PDF` para salvar o relatorio filtrado que esta na tela.
+
 ## Linha de comando
 
 ```powershell
