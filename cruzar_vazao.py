@@ -2,6 +2,7 @@
 import argparse
 import csv
 import datetime as dt
+import statistics
 import posixpath
 import re
 import sys
@@ -300,6 +301,98 @@ def count_pendentes(rows):
 
 def count_saidas_sem_entrada(rows):
     return sum(1 for row in rows if not row["Data entrada"])
+
+
+def tarefas_disponiveis(rows):
+    return sorted({row["Tarefa"] for row in rows if row.get("Tarefa")})
+
+
+def periodo_datas(periodo, hoje=None, inicio=None, fim=None):
+    hoje = hoje or dt.date.today()
+    if periodo == "Este mes":
+        return hoje.replace(day=1), hoje
+    if periodo == "Ultimos 30 dias":
+        return hoje - dt.timedelta(days=30), hoje
+    if periodo == "Este ano":
+        return dt.date(hoje.year, 1, 1), hoje
+    if periodo == "Ultimos 12 meses":
+        return hoje - dt.timedelta(days=365), hoje
+    if periodo == "Personalizado":
+        return inicio, fim
+    return None, None
+
+
+def row_date(row, column):
+    try:
+        return parse_date(row.get(column))
+    except ValueError:
+        return None
+
+
+def in_period(value, inicio, fim):
+    if value is None:
+        return False
+    if inicio and value < inicio:
+        return False
+    if fim and value > fim:
+        return False
+    return True
+
+
+def resumo_por_assessor(rows, tarefa=None, periodo="Todos", inicio=None, fim=None, hoje=None):
+    inicio, fim = periodo_datas(periodo, hoje=hoje, inicio=inicio, fim=fim)
+    resumo = {}
+
+    for row in rows:
+        if tarefa and row.get("Tarefa") != tarefa:
+            continue
+
+        assessor = row.get("Assessor") or "Sem assessor"
+        item = resumo.setdefault(
+            assessor,
+            {
+                "Assessor": assessor,
+                "Saidas": 0,
+                "Vazao media": "",
+                "Vazao mediana": "",
+                "Menor vazao": "",
+                "Maior vazao": "",
+                "Entradas sem saida": 0,
+                "Saidas sem entrada": 0,
+                "_vazoes": [],
+            },
+        )
+
+        data_saida = row_date(row, "Data saida")
+        data_entrada = row_date(row, "Data entrada")
+        tem_saida = bool(row.get("Data saida"))
+        tem_entrada = bool(row.get("Data entrada"))
+        dentro_saida = in_period(data_saida, inicio, fim) if inicio or fim else tem_saida
+        dentro_entrada = in_period(data_entrada, inicio, fim) if inicio or fim else tem_entrada
+
+        if tem_saida and dentro_saida:
+            item["Saidas"] += 1
+            if row.get("Vazao (dias)") != "":
+                item["_vazoes"].append(int(row["Vazao (dias)"]))
+
+        if tem_entrada and not tem_saida and dentro_entrada:
+            item["Entradas sem saida"] += 1
+
+        if tem_saida and not tem_entrada and dentro_saida:
+            item["Saidas sem entrada"] += 1
+
+    final = []
+    for item in resumo.values():
+        vazoes = item.pop("_vazoes")
+        if vazoes:
+            item["Vazao media"] = round(sum(vazoes) / len(vazoes), 1)
+            item["Vazao mediana"] = round(statistics.median(vazoes), 1)
+            item["Menor vazao"] = min(vazoes)
+            item["Maior vazao"] = max(vazoes)
+        if item["Saidas"] or item["Entradas sem saida"] or item["Saidas sem entrada"]:
+            final.append(item)
+
+    return sorted(final, key=lambda item: (item["Saidas"], item["Entradas sem saida"]), reverse=True)
 
 
 def write_csv(path, rows):

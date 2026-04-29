@@ -14,6 +14,17 @@ Selecione:
 2. o XLSX de saidas;
 3. o local do arquivo de resultado.
 
+Depois de gerar a planilha, a mesma tela mostra a vazao por assessor com filtros de tarefa e periodo:
+
+- todos;
+- este mes;
+- ultimos 30 dias;
+- este ano;
+- ultimos 12 meses;
+- personalizado, usando datas no formato `dd/mm/aaaa`.
+
+A tabela exibe quantidade de saidas, media/mediana/minimo/maximo de vazao em dias, entradas sem saida e saidas sem entrada.
+
 ## Linha de comando
 
 ```powershell
