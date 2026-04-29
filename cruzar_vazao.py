@@ -49,6 +49,14 @@ def normalize_header(value):
     return re.sub(r"[^a-z0-9]+", " ", text.translate(replacements)).strip()
 
 
+def normalize_spaces(value):
+    return re.sub(r"\s+", " ", str(value or "").strip())
+
+
+def normalize_assessor(value):
+    return normalize_spaces(value).upper()
+
+
 def find_column(headers, candidates):
     normalized = {normalize_header(header): header for header in headers}
     for candidate in candidates:
@@ -119,7 +127,7 @@ def read_distribuicoes(path):
         distribuicoes.setdefault(processo, []).append(
             {
                 "entrada": parse_date(row.get(entrada_col)),
-                "assessor": str(row.get(assessor_col, "")).strip(),
+                "assessor": normalize_assessor(row.get(assessor_col)),
             }
         )
 
@@ -214,7 +222,7 @@ def read_saidas(path):
                 "processo": processo,
                 "saida": parse_date(row.get(saida_col)),
                 "tarefa": str(row.get(tarefa_col, "")).strip(),
-                "assessor": str(row.get(assessor_col, "")).strip(),
+                "assessor": normalize_assessor(row.get(assessor_col)),
             }
         )
     return saidas
