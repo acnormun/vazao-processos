@@ -132,7 +132,9 @@ class VazaoApp(tk.Tk):
         table_frame.rowconfigure(0, weight=1)
         columns = (
             "assessor",
+            "entradas",
             "saidas",
+            "saldo",
             "media",
             "mediana",
             "menor",
@@ -148,7 +150,9 @@ class VazaoApp(tk.Tk):
         )
         headings = {
             "assessor": "Assessor",
+            "entradas": "Entradas",
             "saidas": "Saidas",
+            "saldo": "Saldo",
             "media": "Media",
             "mediana": "Mediana",
             "menor": "Min",
@@ -157,8 +161,10 @@ class VazaoApp(tk.Tk):
             "sem_entrada": "Sem entrada",
         }
         widths = {
-            "assessor": 260,
+            "assessor": 230,
+            "entradas": 75,
             "saidas": 70,
+            "saldo": 60,
             "media": 70,
             "mediana": 80,
             "menor": 60,
@@ -332,7 +338,9 @@ class VazaoApp(tk.Tk):
                 "end",
                 values=(
                     item["Assessor"],
+                    item["Entradas"],
                     item["Saidas"],
+                    item["Saldo"],
                     item["Vazao media"],
                     item["Vazao mediana"],
                     item["Menor vazao"],
@@ -342,11 +350,13 @@ class VazaoApp(tk.Tk):
                 ),
             )
 
+        total_entradas = sum(item["Entradas"] for item in resumo)
         total_saidas = sum(item["Saidas"] for item in resumo)
         total_pendentes = sum(item["Entradas sem saida"] for item in resumo)
         total_sem_entrada = sum(item["Saidas sem entrada"] for item in resumo)
         self.summary_var.set(
-            f"Assessores: {len(resumo)} | Saidas no periodo: {total_saidas} | "
+            f"Assessores: {len(resumo)} | Entradas no periodo: {total_entradas} | "
+            f"Saidas no periodo: {total_saidas} | Saldo: {total_entradas - total_saidas} | "
             f"Entradas sem saida: {total_pendentes} | Saidas sem entrada: {total_sem_entrada}"
         )
         self.update_chart()
@@ -400,25 +410,41 @@ class VazaoApp(tk.Tk):
             return
 
         width = max(self.chart.winfo_width(), 420)
-        max_saidas = max(item["Saidas"] for item in resumo) or 1
-        row_height = 34
+        max_value = max(max(item["Entradas"], item["Saidas"]) for item in resumo) or 1
+        row_height = 46
         left = 190
         bar_max = max(width - left - 70, 80)
+        self.chart.create_rectangle(left, 8, left + 12, 18, fill="#4f8f45", width=0)
+        self.chart.create_text(left + 18, 13, anchor="w", text="Entradas")
+        self.chart.create_rectangle(left + 95, 8, left + 107, 18, fill="#2f6fed", width=0)
+        self.chart.create_text(left + 113, 13, anchor="w", text="Saidas")
 
         for index, item in enumerate(resumo[:40]):
-            y = 18 + index * row_height
+            y = 34 + index * row_height
             label = item["Assessor"][:28]
-            bar_width = int((item["Saidas"] / max_saidas) * bar_max)
-            self.chart.create_text(10, y + 8, anchor="w", text=label)
-            self.chart.create_rectangle(left, y, left + bar_width, y + 18, fill="#2f6fed", width=0)
+            entradas_width = int((item["Entradas"] / max_value) * bar_max)
+            saidas_width = int((item["Saidas"] / max_value) * bar_max)
+            self.chart.create_text(10, y + 14, anchor="w", text=label)
+            self.chart.create_rectangle(
+                left, y, left + entradas_width, y + 14, fill="#4f8f45", width=0
+            )
             self.chart.create_text(
-                left + bar_width + 8,
-                y + 9,
+                left + entradas_width + 8,
+                y + 7,
+                anchor="w",
+                text=str(item["Entradas"]),
+            )
+            self.chart.create_rectangle(
+                left, y + 18, left + saidas_width, y + 32, fill="#2f6fed", width=0
+            )
+            self.chart.create_text(
+                left + saidas_width + 8,
+                y + 25,
                 anchor="w",
                 text=str(item["Saidas"]),
             )
 
-        height = 40 + min(len(resumo), 40) * row_height
+        height = 60 + min(len(resumo), 40) * row_height
         self.chart.configure(scrollregion=(0, 0, width, height))
 
 

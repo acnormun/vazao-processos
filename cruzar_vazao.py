@@ -360,7 +360,9 @@ def resumo_por_assessor(rows, tarefa=None, periodo="Todos", inicio=None, fim=Non
             assessor,
             {
                 "Assessor": assessor,
+                "Entradas": 0,
                 "Saidas": 0,
+                "Saldo": 0,
                 "Vazao media": "",
                 "Vazao mediana": "",
                 "Menor vazao": "",
@@ -383,6 +385,9 @@ def resumo_por_assessor(rows, tarefa=None, periodo="Todos", inicio=None, fim=Non
             if row.get("Vazao (dias)") != "":
                 item["_vazoes"].append(int(row["Vazao (dias)"]))
 
+        if tem_entrada and dentro_entrada:
+            item["Entradas"] += 1
+
         if tem_entrada and not tem_saida and dentro_entrada:
             item["Entradas sem saida"] += 1
 
@@ -397,10 +402,11 @@ def resumo_por_assessor(rows, tarefa=None, periodo="Todos", inicio=None, fim=Non
             item["Vazao mediana"] = round(statistics.median(vazoes), 1)
             item["Menor vazao"] = min(vazoes)
             item["Maior vazao"] = max(vazoes)
-        if item["Saidas"] or item["Entradas sem saida"] or item["Saidas sem entrada"]:
+        item["Saldo"] = item["Entradas"] - item["Saidas"]
+        if item["Entradas"] or item["Saidas"] or item["Entradas sem saida"] or item["Saidas sem entrada"]:
             final.append(item)
 
-    return sorted(final, key=lambda item: (item["Saidas"], item["Entradas sem saida"]), reverse=True)
+    return sorted(final, key=lambda item: (item["Saidas"], item["Entradas"]), reverse=True)
 
 
 def write_csv(path, rows):
@@ -486,8 +492,10 @@ def write_pdf_report(path, resumo, titulo="Relatorio de vazao por assessor", fil
     margin = 36
     row_height = 18
     columns = [
-        ("Assessor", 245),
+        ("Assessor", 205),
+        ("Entradas", 55),
         ("Saidas", 50),
+        ("Saldo", 45),
         ("Media", 55),
         ("Mediana", 60),
         ("Min", 40),
@@ -521,6 +529,7 @@ def write_pdf_report(path, resumo, titulo="Relatorio de vazao por assessor", fil
     y = draw_header(current)
     y = draw_table_header(current, y)
 
+    total_entradas = 0
     total_saidas = 0
     total_sem_saida = 0
     total_sem_entrada = 0
@@ -533,7 +542,9 @@ def write_pdf_report(path, resumo, titulo="Relatorio de vazao por assessor", fil
 
         values = [
             item["Assessor"][:45],
+            item["Entradas"],
             item["Saidas"],
+            item["Saldo"],
             item["Vazao media"],
             item["Vazao mediana"],
             item["Menor vazao"],
@@ -546,6 +557,7 @@ def write_pdf_report(path, resumo, titulo="Relatorio de vazao por assessor", fil
         for value, (_label, size) in zip(values, columns):
             current.append(f"BT /F1 7 Tf {x + 3} {y} Td ({pdf_text(value)}) Tj ET")
             x += size
+        total_entradas += item["Entradas"]
         total_saidas += item["Saidas"]
         total_sem_saida += item["Entradas sem saida"]
         total_sem_entrada += item["Saidas sem entrada"]
@@ -557,7 +569,8 @@ def write_pdf_report(path, resumo, titulo="Relatorio de vazao por assessor", fil
         y = draw_header(current)
 
     total_text = (
-        f"Totais: saidas={total_saidas} | entradas sem saida={total_sem_saida} | "
+        f"Totais: entradas={total_entradas} | saidas={total_saidas} | "
+        f"saldo={total_entradas - total_saidas} | entradas sem saida={total_sem_saida} | "
         f"saidas sem entrada={total_sem_entrada}"
     )
     current.append(f"BT /F1 10 Tf {margin} {y - 8} Td ({pdf_text(total_text)}) Tj ET")

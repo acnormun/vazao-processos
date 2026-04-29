@@ -23,7 +23,7 @@ Depois de gerar a planilha, a mesma tela mostra a vazao por assessor com filtros
 - ultimos 12 meses;
 - personalizado, usando datas no formato `dd/mm/aaaa`.
 
-A tabela exibe quantidade de saidas, media/mediana/minimo/maximo de vazao em dias, entradas sem saida e saidas sem entrada.
+A tabela exibe quantidade de entradas, quantidade de saidas, saldo, media/mediana/minimo/maximo de vazao em dias, entradas sem saida e saidas sem entrada.
 
 Use o botao `Exportar PDF` para salvar o relatorio filtrado que esta na tela.
 
