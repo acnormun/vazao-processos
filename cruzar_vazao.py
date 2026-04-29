@@ -26,6 +26,12 @@ OUTPUT_COLUMNS = [
     "Vazao (dias)",
 ]
 
+SAIDA_TAREFAS_PERMITIDAS = {
+    "minutar relatorio de voto",
+    "minutar decisao monocratica",
+    "decisao monocratica",
+}
+
 
 def normalize_header(value):
     text = str(value or "").strip().lower()
@@ -47,6 +53,10 @@ def normalize_header(value):
         }
     )
     return re.sub(r"[^a-z0-9]+", " ", text.translate(replacements)).strip()
+
+
+def normalize_text(value):
+    return normalize_header(value)
 
 
 def normalize_spaces(value):
@@ -217,11 +227,14 @@ def read_saidas(path):
         processo = str(row.get(processo_col, "")).strip()
         if not processo or processo.lower() == "totais":
             continue
+        tarefa = str(row.get(tarefa_col, "")).strip()
+        if normalize_text(tarefa) not in SAIDA_TAREFAS_PERMITIDAS:
+            continue
         saidas.append(
             {
                 "processo": processo,
                 "saida": parse_date(row.get(saida_col)),
-                "tarefa": str(row.get(tarefa_col, "")).strip(),
+                "tarefa": tarefa,
                 "assessor": normalize_assessor(row.get(assessor_col)),
             }
         )

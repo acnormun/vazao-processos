@@ -41,3 +41,4 @@ python .\cruzar_vazao.py "C:\caminho\processos-triagem.csv" "C:\caminho\PJyVh.xl
 - quando entrou mas ainda nao saiu, deixa `Data saida` e `Vazao (dias)` vazias;
 - quando saiu mas nao consta na entrada, deixa `Data entrada` e `Vazao (dias)` vazias;
 - quando o assessor de entrada e saida divergem, usa o assessor da saida.
+- nas saidas, considera apenas `Minutar relatório de voto` e `Minutar decisão monocrática`.
