@@ -2,7 +2,6 @@
 import argparse
 import csv
 import datetime as dt
-import statistics
 import posixpath
 import re
 import sys
@@ -333,11 +332,11 @@ def periodo_datas(periodo, hoje=None, inicio=None, fim=None):
     if periodo == "Este mes":
         return hoje.replace(day=1), hoje
     if periodo == "Ultimos 30 dias":
-        return hoje - dt.timedelta(days=30), hoje
+        return hoje - dt.timedelta(days=29), hoje
     if periodo == "Este ano":
         return dt.date(hoje.year, 1, 1), hoje
     if periodo == "Ultimos 12 meses":
-        return hoje - dt.timedelta(days=365), hoje
+        return hoje - dt.timedelta(days=364), hoje
     if periodo == "Personalizado":
         return inicio, fim
     return None, None
@@ -360,8 +359,33 @@ def in_period(value, inicio, fim):
     return True
 
 
+def periodo_efetivo(rows, tarefa, inicio, fim):
+    datas = []
+    for row in rows:
+        if tarefa and row.get("Tarefa") != tarefa:
+            continue
+        for column in ("Data entrada", "Data saida"):
+            value = row_date(row, column)
+            if value:
+                datas.append(value)
+
+    if inicio is None and datas:
+        inicio = min(datas)
+    if fim is None and datas:
+        fim = max(datas)
+    if inicio is None:
+        inicio = dt.date.today()
+    if fim is None:
+        fim = inicio
+    if fim < inicio:
+        fim = inicio
+    return inicio, fim
+
+
 def resumo_por_assessor(rows, tarefa=None, periodo="Todos", inicio=None, fim=None, hoje=None):
     inicio, fim = periodo_datas(periodo, hoje=hoje, inicio=inicio, fim=fim)
+    inicio, fim = periodo_efetivo(rows, tarefa, inicio, fim)
+    dias_periodo = max((fim - inicio).days + 1, 1)
     resumo = {}
 
     for row in rows:
@@ -376,13 +400,9 @@ def resumo_por_assessor(rows, tarefa=None, periodo="Todos", inicio=None, fim=Non
                 "Entradas": 0,
                 "Saidas": 0,
                 "Saldo": 0,
-                "Vazao media": "",
-                "Vazao mediana": "",
-                "Menor vazao": "",
-                "Maior vazao": "",
+                "Media saidas/dia": 0,
                 "Entradas sem saida": 0,
                 "Saidas sem entrada": 0,
-                "_vazoes": [],
             },
         )
 
@@ -395,8 +415,6 @@ def resumo_por_assessor(rows, tarefa=None, periodo="Todos", inicio=None, fim=Non
 
         if tem_saida and dentro_saida:
             item["Saidas"] += 1
-            if row.get("Vazao (dias)") != "":
-                item["_vazoes"].append(int(row["Vazao (dias)"]))
 
         if tem_entrada and dentro_entrada:
             item["Entradas"] += 1
@@ -409,13 +427,8 @@ def resumo_por_assessor(rows, tarefa=None, periodo="Todos", inicio=None, fim=Non
 
     final = []
     for item in resumo.values():
-        vazoes = item.pop("_vazoes")
-        if vazoes:
-            item["Vazao media"] = round(sum(vazoes) / len(vazoes), 1)
-            item["Vazao mediana"] = round(statistics.median(vazoes), 1)
-            item["Menor vazao"] = min(vazoes)
-            item["Maior vazao"] = max(vazoes)
         item["Saldo"] = item["Entradas"] - item["Saidas"]
+        item["Media saidas/dia"] = round(item["Saidas"] / dias_periodo, 2)
         if item["Entradas"] or item["Saidas"] or item["Entradas sem saida"] or item["Saidas sem entrada"]:
             final.append(item)
 
@@ -509,10 +522,7 @@ def write_pdf_report(path, resumo, titulo="Relatorio de vazao por assessor", fil
         ("Entradas", 55),
         ("Saidas", 50),
         ("Saldo", 45),
-        ("Media", 55),
-        ("Mediana", 60),
-        ("Min", 40),
-        ("Max", 40),
+        ("Saidas/dia", 65),
         ("Sem saida", 65),
         ("Sem entrada", 75),
     ]
@@ -558,10 +568,7 @@ def write_pdf_report(path, resumo, titulo="Relatorio de vazao por assessor", fil
             item["Entradas"],
             item["Saidas"],
             item["Saldo"],
-            item["Vazao media"],
-            item["Vazao mediana"],
-            item["Menor vazao"],
-            item["Maior vazao"],
+            item["Media saidas/dia"],
             item["Entradas sem saida"],
             item["Saidas sem entrada"],
         ]
